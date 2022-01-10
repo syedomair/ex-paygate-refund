@@ -6,9 +6,15 @@ import (
 	"os"
 	"testing"
 
+	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/syedomair/ex-paygate-lib/lib/models"
 	"github.com/syedomair/ex-paygate-lib/lib/tools/logger"
 	"github.com/syedomair/ex-paygate-lib/lib/tools/mockserver"
+)
+
+const (
+	valid_approve_key   = "06F3BCC1C3B836B1AA6D"
+	invalid_approve_key = "1D754E20948F3EB8589A9"
 )
 
 func TestRefundAction(t *testing.T) {
@@ -26,7 +32,7 @@ func TestRefundAction(t *testing.T) {
 	}
 
 	//Invalid approve_key
-	res, req := mockserver.MockTestServer(method, url, []byte(`{"approve_key":"1D754E20948F3EB8589A9"}`))
+	res, req := mockserver.MockTestServer(method, url, []byte(`{"amount":"2", "approve_key":"`+invalid_approve_key+`"}`))
 	c.RefundAction(res, req)
 	response := new(TestResponse)
 	json.NewDecoder(res.Result().Body).Decode(response)
@@ -37,7 +43,7 @@ func TestRefundAction(t *testing.T) {
 	}
 
 	//Valid approve_key
-	res, req = mockserver.MockTestServer(method, url, []byte(`{"approve_key":"D754E20948F3EB8589A9"}`))
+	res, req = mockserver.MockTestServer(method, url, []byte(`{"amount":"10", "approve_key":"`+valid_approve_key+`"}`))
 	c.RefundAction(res, req)
 	response = new(TestResponse)
 	json.NewDecoder(res.Result().Body).Decode(response)
@@ -46,14 +52,13 @@ func TestRefundAction(t *testing.T) {
 	if expected != response.Result {
 		t.Errorf("\n...expected = %v\n...obtained = %v", expected, response.Result)
 	}
-
 }
 
 type mockPay struct {
 }
 
-func (mdb *mockPay) RefundPayment(approveObj *models.Approve) (string, error) {
-	return "", nil
+func (mdb *mockPay) RefundPayment(approveObj *models.Approve, refundAmount string) error {
+	return nil
 }
 
 type mockDB struct {
@@ -67,7 +72,7 @@ func (mdb *mockDB) RefundApprove(inputApproveKey map[string]interface{}) (*model
 	if approveKeyValue, ok := inputApproveKey["approve_key"]; ok {
 		approveKey = approveKeyValue.(string)
 	}
-	if approveKey != "D754E20948F3EB8589A9" {
+	if approveKey != valid_approve_key {
 		return nil, errors.New("invalid approve_key")
 	}
 	return &models.Approve{}, nil

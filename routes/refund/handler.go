@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	errorCodePrefix = "04"
+	errorCodePrefix = "01"
 )
 
 // Controller Public
@@ -40,6 +40,7 @@ func (c *Controller) RefundAction(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	paramConf := make(map[string]models.ParamConf)
+	paramConf["amount"] = models.ParamConf{Required: true, Type: request.STRING, EmptyAllowed: false}
 	paramConf["approve_key"] = models.ParamConf{Required: true, Type: request.STRING, EmptyAllowed: false}
 
 	paramMap, errCode, err := request.ValidateInputParameters(r, request.GetRequestID(r), c.Logger, paramConf, nil)
@@ -53,7 +54,6 @@ func (c *Controller) RefundAction(w http.ResponseWriter, r *http.Request) {
 		response.ErrorResponseHelper(request.GetRequestID(r), methodName, c.Logger, w, errorCodePrefix+"2", err.Error(), http.StatusBadRequest)
 		return
 	}
-
 
 	responseAction := map[string]string{"approved_amount_balance": approveObj.AmountBalance, "currency": approveObj.Currency}
 	c.Logger.Debug(request.GetRequestID(r), "M:%v ts %+v", methodName, time.Since(start))

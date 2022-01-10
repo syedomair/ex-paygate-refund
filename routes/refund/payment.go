@@ -6,5 +6,5 @@ import (
 
 // Payment Interface
 type Payment interface {
-	RefundPayment(*models.Approve) (string, error)
+	RefundPayment(approveObj *models.Approve, amount string) error
 }

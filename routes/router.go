@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/jinzhu/gorm"
+	"github.com/syedomair/ex-paygate-refund/routes/refund"
 	"github.com/syedomair/ex-paygate-lib/lib/container"
 	log "github.com/syedomair/ex-paygate-lib/lib/tools/logger"
-	"github.com/syedomair/ex-paygate-refund/routes/refund"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
@@ -51,8 +51,8 @@ type Routes []Route
 
 func routerSetup(db *gorm.DB, logger log.Logger, signingKey string) *chi.Mux {
 
-	repoRefund := refund.NewPostgresRepository(db, logger)
 	payRefund := refund.NewPaymentService(logger)
+	repoRefund := refund.NewPostgresRepository(db, logger, payRefund)
 
 	router := chi.NewRouter()
 	refundController := &refund.Controller{
