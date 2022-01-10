@@ -18,7 +18,7 @@ func TestRefundAction(t *testing.T) {
 		Pay:    &mockPay{}}
 
 	method := "POST"
-	url := "/void"
+	url := "/refund"
 
 	type TestResponse struct {
 		Data   string
