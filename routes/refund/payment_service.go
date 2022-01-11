@@ -1,6 +1,7 @@
 package refund
 
 import (
+	"errors"
 	"time"
 
 	"github.com/syedomair/ex-paygate-lib/lib/models"
@@ -11,6 +12,10 @@ type PaymentService struct {
 	logger    logger.Logger
 	requestID string
 }
+
+const (
+	RefundFailureCCNumber = "4000000000003238"
+)
 
 // NewPaymentService Public.
 func NewPaymentService(logger logger.Logger) Payment {
@@ -23,11 +28,9 @@ func (payWrap *PaymentService) RefundPayment(approveObj *models.Approve, refundA
 	payWrap.logger.Debug(payWrap.requestID, "M:%v start", methodName)
 	start := time.Now()
 
-	/*
-			4000 0000 0000 0119: authorisation failure
-			4000 0000 0000 0259: capture failure
-		        4000 0000 0000 3238: refund failure
-	*/
+	if approveObj.CCNumber == RefundFailureCCNumber {
+		return errors.New("refund failure")
+	}
 
 	payWrap.logger.Debug(payWrap.requestID, "M:%v ts %+v", methodName, time.Since(start))
 	return nil

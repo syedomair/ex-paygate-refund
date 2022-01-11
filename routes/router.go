@@ -2,12 +2,15 @@ package routes
 
 import (
 	//"context"
+	"context"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/jinzhu/gorm"
-	"github.com/syedomair/ex-paygate-refund/routes/refund"
 	"github.com/syedomair/ex-paygate-lib/lib/container"
 	log "github.com/syedomair/ex-paygate-lib/lib/tools/logger"
+	"github.com/syedomair/ex-paygate-lib/lib/tools/request"
+	"github.com/syedomair/ex-paygate-refund/routes/refund"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/cors"
@@ -79,23 +82,24 @@ func routerSetup(db *gorm.DB, logger log.Logger, signingKey string) *chi.Mux {
 	}
 
 	for _, route := range routes {
-
-		handler := route.HandlerFunc
-
-		/*
-			if route.Access == "admin" {
-				handler = securityWorkflowAdminMiddleware(strKey, logger, handler, signingKey)
-			} else if route.Access == "networkadmin" {
-				handler = securityNetworkAdminMiddleware(strKey, logger, handler, signingKey)
-			} else if route.Access == "networkrobotadmin" {
-				handler = securityNetworkRobotAdminMiddleware(strKey, logger, handler, signingKey)
-			} else if route.Access == "user" {
-				handler = securityUserMiddleware(strKey, logger, handler, signingKey)
-			} else if route.Access == "globaladmin" {
-				handler = securityGlobalAdminMiddleware(strKey, logger, handler, signingKey)
-			}
-		*/
+		var handler http.Handler
+		strKey := uuid.NewString()
+		handler = route.HandlerFunc
+		handler = loggerMiddleware(strKey, logger, handler, route.Method, route.Pattern)
 		router.Method(route.Method, route.Pattern, handler)
 	}
 	return router
+}
+
+func loggerMiddleware(strKey string, logger log.Logger, handle http.Handler, method string, pattern string) http.Handler {
+	methodName := "loggerMiddleware"
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		testNum := r.Header.Get("Testnum")
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, request.ContextKeyRequestID, strKey)
+		r = r.WithContext(ctx)
+		logger.Debug(strKey, "******* %v ****%v:%v**********", testNum, method, pattern)
+		logger.Debug(strKey, "M:%v ", methodName)
+		handle.ServeHTTP(w, r)
+	})
 }

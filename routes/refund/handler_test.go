@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	valid_approve_key   = "06F3BCC1C3B836B1AA6D"
-	invalid_approve_key = "1D754E20948F3EB8589A9"
+	ValidApproveKey   = "06F3BCC1C3B836B1AA6D"
+	InvalidApproveKey = "1D754E20948F3EB8589A9"
 )
 
 func TestRefundAction(t *testing.T) {
@@ -32,7 +32,7 @@ func TestRefundAction(t *testing.T) {
 	}
 
 	//Invalid approve_key
-	res, req := mockserver.MockTestServer(method, url, []byte(`{"amount":"2", "approve_key":"`+invalid_approve_key+`"}`))
+	res, req := mockserver.MockTestServer(method, url, []byte(`{"amount":"2", "approve_key":"`+InvalidApproveKey+`"}`))
 	c.RefundAction(res, req)
 	response := new(TestResponse)
 	json.NewDecoder(res.Result().Body).Decode(response)
@@ -43,7 +43,7 @@ func TestRefundAction(t *testing.T) {
 	}
 
 	//Valid approve_key
-	res, req = mockserver.MockTestServer(method, url, []byte(`{"amount":"10", "approve_key":"`+valid_approve_key+`"}`))
+	res, req = mockserver.MockTestServer(method, url, []byte(`{"amount":"10", "approve_key":"`+ValidApproveKey+`"}`))
 	c.RefundAction(res, req)
 	response = new(TestResponse)
 	json.NewDecoder(res.Result().Body).Decode(response)
@@ -58,6 +58,9 @@ type mockPay struct {
 }
 
 func (mdb *mockPay) RefundPayment(approveObj *models.Approve, refundAmount string) error {
+	if approveObj.CCNumber == RefundFailureCCNumber {
+		return errors.New("refund failure")
+	}
 	return nil
 }
 
@@ -72,7 +75,7 @@ func (mdb *mockDB) RefundApprove(inputApproveKey map[string]interface{}) (*model
 	if approveKeyValue, ok := inputApproveKey["approve_key"]; ok {
 		approveKey = approveKeyValue.(string)
 	}
-	if approveKey != valid_approve_key {
+	if approveKey != ValidApproveKey {
 		return nil, errors.New("invalid approve_key")
 	}
 	return &models.Approve{}, nil

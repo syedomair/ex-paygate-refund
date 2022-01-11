@@ -1,6 +1,7 @@
 package refund
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
@@ -76,11 +77,53 @@ func (p *postgresRepo) transactionCreateLedger(db *gorm.DB,
 	return db.Transaction(func(tx *gorm.DB) error {
 
 		approveObj := models.Approve{}
-		if err := p.client.Set("gorm:query_option", "FOR UPDATE").Table("approve").
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Table("approve").
 			Where("approve_key = ?", approveKey).
 			Where("status = ?", 1).
 			Find(&approveObj).Error; err != nil {
 			return errors.New("invalid approve_key")
+		}
+
+		sumRefundFltChn := make(chan float64)
+		sumCaptureFltChn := make(chan float64)
+
+		g := new(errgroup.Group)
+		g.Go(func() error {
+			var sumRefund sql.NullFloat64
+			if err := tx.Table("ledger").
+				Select("sum(amount)").
+				Where("approve_id = ?", approveObj.ID).
+				Where("action_type = ?", "REFUND").
+				Row().Scan(&sumRefund); err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return errors.New("unexpected error")
+				}
+			}
+			sumRefundFltChn <- sumRefund.Float64
+			return nil
+		})
+
+		g.Go(func() error {
+			var sumCapture sql.NullFloat64
+			if err := tx.Table("ledger").Select("sum(amount)").
+				Where("approve_id = ?", approveObj.ID).
+				Where("action_type = ?", "CAPTURE").
+				Row().Scan(&sumCapture); err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return errors.New("unexpected error")
+				}
+			}
+			sumCaptureFltChn <- sumCapture.Float64
+			return nil
+		})
+		if err := g.Wait(); err != nil {
+			return err
+		}
+		sumCaptureFlt := <-sumCaptureFltChn
+		sumRefundFlt := <-sumRefundFltChn
+
+		if sumCaptureFlt == 0.00 {
+			return errors.New("no capture to refund")
 		}
 
 		var amountBalance, amountRefund float64
@@ -95,18 +138,18 @@ func (p *postgresRepo) transactionCreateLedger(db *gorm.DB,
 		}
 
 		f := floathelper.Floater{Accuracy: 0.01}
-		if f.AGreaterThanB(amountRefund, amountBalance) == 1 {
+		if f.AGreaterThanB(amountRefund, sumCaptureFlt-sumRefundFlt) == 1 {
 			return errors.New("invalid refund amount")
 		}
 
-		amountRefund := fmt.Sprintf("%f", amountRefund)
+		amountRefundStr := fmt.Sprintf("%f", amountRefund)
 
 		err = p.payService.RefundPayment(&approveObj, amountRefundStr)
 		if err != nil {
 			return errors.New("error from payment service")
 		}
 
-		g := new(errgroup.Group)
+		g = new(errgroup.Group)
 		g.Go(func() error {
 			newLedger := &models.Ledger{}
 			newLedger.MerchantID = approveObj.MerchantID
@@ -114,7 +157,7 @@ func (p *postgresRepo) transactionCreateLedger(db *gorm.DB,
 			newLedger.Amount = amountRefundStr
 			newLedger.ActionType = Refund
 			newLedger.CreatedAt = time.Now().Format(time.RFC3339)
-			if err := p.client.Create(newLedger).Error; err != nil {
+			if err := tx.Create(newLedger).Error; err != nil {
 				return err
 			}
 			return nil
@@ -122,8 +165,8 @@ func (p *postgresRepo) transactionCreateLedger(db *gorm.DB,
 
 		g.Go(func() error {
 			inputApproveKey := make(map[string]interface{})
-			inputApproveKey["amount_balance"] = amountBalance - amountRefund
-			if err := p.client.
+			inputApproveKey["amount_balance"] = amountBalance + amountRefund
+			if err := tx.
 				Table("approve").
 				Where("approve_key = ?", approveKey).
 				Updates(inputApproveKey).Error; err != nil {

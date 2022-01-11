@@ -51,9 +51,6 @@ EXPOSE ${PORT}
 COPY --from=builder /tmp/src /src
 WORKDIR /src
 
-# Copy CA certificates which are not present in the scratch image
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
 # Copy api binary from first step and its dependencies
 COPY --from=builder /src/ex-paygate-refund/api api
 

@@ -13,7 +13,7 @@ rund:
          --build-arg port=$(PORT) \
          --build-arg database_url=$(DATABASE_URL_DOCKER) \
          --build-arg signingkey=$(SIGNINGKEY)  .
-	docker container run  -p 8322:8322 --name ex-paygate-refund syedomair/ex-paygate-refund:latest
+	docker container run  -p 8324:8324 --name ex-paygate-refund syedomair/ex-paygate-refund:latest
 
 test_v:    
 	go test ./... -v
